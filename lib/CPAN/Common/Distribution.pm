@@ -6,6 +6,45 @@ package CPAN::Common::Distribution;
 # ABSTRACT: Configure, build, test and install a CPAN distribution directory
 # VERSION
 
+use Carp ();
+
+my @ATTRIBUTES = qw(
+    path
+);
+
+for my $k ( @ATTRIBUTES ) {
+    no strict 'refs';
+    *{ __PACKAGE__ . "::$k" } = sub {
+        return @_ > 1 ? $_[0]->{$k} = $_[1] : $_[0]->{$k};
+    };
+}
+
+sub new {
+    my ($class, $args ) = @_;
+
+    # argument must be a hash
+    $args = {} unless defined $args;
+    if ( ref $args ne 'HASH' ) {
+        Carp::croak("Argument to new() must be a hash reference");
+    }
+
+    # initialize attributes
+    my %attributes;
+    for my $k ( @ATTRIBUTES ) {
+        if ( exists $args->{$k} ) {
+            $attributes{$k} = delete $args->{$k};
+        }
+    }
+
+    # die on any unknown attributes
+    if ( keys %$args ) {
+        Carp::croak( "Unknown arguments to new(): " . join( " ", keys %$args ) );
+    }
+
+    # return the object
+    my $self = bless \%attributes, $class;
+    return $self;
+}
 
 1;
 
