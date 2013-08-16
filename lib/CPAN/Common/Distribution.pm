@@ -6,44 +6,33 @@ package CPAN::Common::Distribution;
 # ABSTRACT: Configure, build, test and install a CPAN distribution directory
 # VERSION
 
-use Carp ();
+use Carp       ();
+use CPAN::Meta ();
+use File::Spec ();
+use Log::Any qw($log);
 
-my @ATTRIBUTES = qw(
-    path
-);
+use Class::Tiny qw/path/;
 
-for my $k ( @ATTRIBUTES ) {
-    no strict 'refs';
-    *{ __PACKAGE__ . "::$k" } = sub {
-        return @_ > 1 ? $_[0]->{$k} = $_[1] : $_[0]->{$k};
-    };
-}
+sub configure_requires {
+    my ($self) = @_;
 
-sub new {
-    my ($class, $args ) = @_;
-
-    # argument must be a hash
-    $args = {} unless defined $args;
-    if ( ref $args ne 'HASH' ) {
-        Carp::croak("Argument to new() must be a hash reference");
-    }
-
-    # initialize attributes
-    my %attributes;
-    for my $k ( @ATTRIBUTES ) {
-        if ( exists $args->{$k} ) {
-            $attributes{$k} = delete $args->{$k};
+    for my $file ( map { $self->_file($_) } qw( META.json META.yml ) ) {
+        next unless -f $file;
+        my $meta = eval { CPAN::Meta->load_file($file) };
+        if ($meta) {
+            return $meta->effective_prereqs->requirements_for(qw/configure requires/);
+        }
+        else {
+            $log->warn($@) if $@;
         }
     }
 
-    # die on any unknown attributes
-    if ( keys %$args ) {
-        Carp::croak( "Unknown arguments to new(): " . join( " ", keys %$args ) );
-    }
+    return;
+}
 
-    # return the object
-    my $self = bless \%attributes, $class;
-    return $self;
+sub _file {
+    my ( $self, $child ) = @_;
+    return File::Spec->catfile( $self->path, $child );
 }
 
 1;
