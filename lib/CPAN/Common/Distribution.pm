@@ -11,7 +11,19 @@ use CPAN::Meta ();
 use File::Spec ();
 use Log::Any qw($log);
 
-use Class::Tiny qw/path/;
+use Class::Tiny qw/path status/;
+
+use CPAN::Common::Distribution::Status;
+
+sub BUILD {
+    my $self = shift;
+    $self->status( CPAN::Common::Distribution::Status->new );
+
+    my $path = $self->path;
+    unless ( defined $path && -d $path ) {
+        Carp::croak( "Path '$path' is not a directory" );
+    }
+}
 
 sub configure_requires {
     my ($self) = @_;
@@ -28,6 +40,11 @@ sub configure_requires {
     }
 
     return;
+}
+
+sub configure {
+    my ($self) = @_;
+
 }
 
 sub _file {
