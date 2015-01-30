@@ -10,8 +10,18 @@ use Carp       ();
 use CPAN::Meta ();
 use File::Spec ();
 use Log::Any qw($log);
+use Module::Load ();
 
-use Class::Tiny qw/path status/;
+use Class::Tiny qw/path status/, {
+    taskclass  => sub { 'CPAN::Common::Distribution::Task' },
+    installer  => sub { $_[0]->_build_installer },
+    installers => sub {
+        [
+            'CPAN::Common::Distribution::MakefilePL',
+            'CPAN::Common::Distribution::BuildPL'
+        ];
+    },
+};
 
 use CPAN::Common::Distribution::Status;
 
@@ -23,6 +33,7 @@ sub BUILD {
     unless ( defined $path && -d $path ) {
         Carp::croak( "Path '$path' is not a directory" );
     }
+    Module::Load::load( $self->taskclass );
 }
 
 sub configure_requires {
@@ -44,12 +55,40 @@ sub configure_requires {
 
 sub configure {
     my ($self) = @_;
+    return $self->installer->configure;
+}
 
+sub build {
+    my ($self) = @_;
+    return $self->installer->build;
+}
+
+sub test {
+    my ( $self) = @_;
+    return $self->installer->test;
+}
+
+sub install {
+    my ( $self ) = @_;
+    return $self->installer->install;
 }
 
 sub _file {
     my ( $self, $child ) = @_;
     return File::Spec->catfile( $self->path, $child );
+}
+
+sub _build_installer {
+    my ($self) = @_;
+    for my $installer ( @{ $self->installers } ) {
+        Module::Load::load($installer);
+        my $installer_object = $installer->new(
+            path      => $self->path,
+            taskclass => $self->taskclass,
+        );
+        next unless $installer_object->is_valid;
+    }
+    $log->errorf( "No installer detected, tried: <%s>", join q[, ], @{ $self->installers } );
 }
 
 1;
